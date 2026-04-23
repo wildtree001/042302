@@ -387,26 +387,27 @@ function ReturnAnalyticsChart({
     [benchmarkCode]
   );
 
-  useEffect(() => {
-    if (onExportRef && containerRef.current) {
-      const periodLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label || period;
-      const aggregationLabel = AGGREGATION_OPTIONS.find((a) => a.value === aggregation)?.label || aggregation;
-      const chartTypeLabel = CHART_TYPE_OPTIONS.find((c) => c.value === chartType)?.label || chartType;
-      
-      onExportRef.current = {
-        chartContainer: containerRef.current,
-        chartData: {
-          period: periodLabel,
-          periodValue: period,
-          aggregation: aggregationLabel,
-          aggregationValue: aggregation,
-          benchmark: selectedBenchmarkLabel,
-          chartType: chartTypeLabel
-        },
-        summary: summary
-      };
-    }
-  }, [onExportRef, period, aggregation, selectedBenchmarkLabel, chartType, summary]);
+  const latest = useMemo(() => {
+    if (!chartData.length) return null;
+    return chartData[chartData.length - 1];
+  }, [chartData]);
+
+  const summary = useMemo(() => {
+    if (!chartData.length) return null;
+    
+    const returns = chartData
+      .map((d) => d.portfolioReturn)
+      .filter((r) => Number.isFinite(r));
+    
+    if (!returns.length) return null;
+    
+    const current = returns[returns.length - 1];
+    const min = Math.min(...returns);
+    const max = Math.max(...returns);
+    const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
+    
+    return { current, min, max, avg };
+  }, [chartData]);
 
   useEffect(() => {
     let canceled = false;
@@ -477,27 +478,26 @@ function ReturnAnalyticsChart({
     };
   }, [benchmarkCode, period, aggregation, showBenchmark, trackedSignature]);
 
-  const latest = useMemo(() => {
-    if (!chartData.length) return null;
-    return chartData[chartData.length - 1];
-  }, [chartData]);
-
-  const summary = useMemo(() => {
-    if (!chartData.length) return null;
-    
-    const returns = chartData
-      .map((d) => d.portfolioReturn)
-      .filter((r) => Number.isFinite(r));
-    
-    if (!returns.length) return null;
-    
-    const current = returns[returns.length - 1];
-    const min = Math.min(...returns);
-    const max = Math.max(...returns);
-    const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
-    
-    return { current, min, max, avg };
-  }, [chartData]);
+  useEffect(() => {
+    if (onExportRef && containerRef.current) {
+      const periodLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label || period;
+      const aggregationLabel = AGGREGATION_OPTIONS.find((a) => a.value === aggregation)?.label || aggregation;
+      const chartTypeLabel = CHART_TYPE_OPTIONS.find((c) => c.value === chartType)?.label || chartType;
+      
+      onExportRef.current = {
+        chartContainer: containerRef.current,
+        chartData: {
+          period: periodLabel,
+          periodValue: period,
+          aggregation: aggregationLabel,
+          aggregationValue: aggregation,
+          benchmark: selectedBenchmarkLabel,
+          chartType: chartTypeLabel
+        },
+        summary: summary
+      };
+    }
+  }, [onExportRef, period, aggregation, selectedBenchmarkLabel, chartType, summary]);
 
   const formatXAxisLabel = (value) => {
     if (aggregation === 'year') {
