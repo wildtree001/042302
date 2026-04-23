@@ -1,6 +1,7 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { getMarketStatusTag, resolveFundSectorTag } from '../utils/fundLabels';
+import { AlertSettingsModal, getAlertSettings } from './AlertSettingsModal';
 
 const FundChart = dynamic(() => import('./FundChart'), {
   ssr: false,
@@ -34,9 +35,13 @@ function FundCard({
   onAmountChange,
   onExistingProfitChange,
   onSetAmountEdit,
-  onSetExistingProfitEdit
+  onSetExistingProfitEdit,
+  onToggleAlertSettings,
+  alertSettings: propsAlertSettings
 }) {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [alertSettings, setAlertSettings] = useState(null);
   
   const changeValue = Number.parseFloat(fund.gszzl);
   const isUp = Number.isFinite(changeValue) && changeValue > 0;
@@ -48,6 +53,19 @@ function FundCard({
     ? (holdingReturnRateNum >= 0 ? 'positive' : 'negative')
     : '';
   const hasAmount = Number.isFinite(Number.parseFloat(fund.amount));
+
+  useEffect(() => {
+    if (propsAlertSettings && propsAlertSettings[fund.code]) {
+      setAlertSettings(propsAlertSettings[fund.code]);
+    } else {
+      const allSettings = getAlertSettings();
+      setAlertSettings(allSettings[fund.code] || null);
+    }
+  }, [fund.code, propsAlertSettings]);
+
+  const hasAlertEnabled = alertSettings?.enabled === true;
+  const hasUpAlert = hasAlertEnabled && alertSettings?.notifyOnUp === true;
+  const hasDownAlert = hasAlertEnabled && alertSettings?.notifyOnDown === true;
 
   const marketStatus = useMemo(() => getMarketStatusTag(), [fund.lastUpdate, fund.gztime]);
   const sectorTag = useMemo(() => resolveFundSectorTag(fund), [fund.name, fund.fundType]);
@@ -84,6 +102,15 @@ function FundCard({
           </div>
         </div>
         <div className="fund-actions">
+          <button
+            type="button"
+            onClick={() => setShowAlertSettings(true)}
+            className={`icon-button ${hasAlertEnabled ? 'alert-active' : ''}`}
+            title="涨跌幅提醒设置"
+            aria-label="涨跌幅提醒设置"
+          >
+            🔔
+          </button>
           <button
             type="button"
             onClick={onToggleFavorite}
@@ -207,6 +234,14 @@ function FundCard({
       <div className="action-buttons">
         <button
           type="button"
+          onClick={() => setShowAlertSettings(true)}
+          className={`button button-secondary alert-button ${hasAlertEnabled ? 'active' : ''}`}
+          title="涨跌幅提醒设置"
+        >
+          🔔 提醒设置
+        </button>
+        <button
+          type="button"
           onClick={onToggleFavorite}
           className={`button button-secondary favorite-button ${fund.isFavorite ? 'active' : ''}`}
         >
@@ -220,7 +255,36 @@ function FundCard({
         </button>
       </div>
 
+      {hasAlertEnabled && (
+        <div className="alert-status-bar">
+          <span className="alert-status-label">提醒已启用：</span>
+          {hasUpAlert && (
+            <span className="alert-status-item up">
+              涨超 {alertSettings?.upThreshold || 5}%
+            </span>
+          )}
+          {hasDownAlert && (
+            <span className="alert-status-item down">
+              跌超 {alertSettings?.downThreshold || 3}%
+            </span>
+          )}
+        </div>
+      )}
+
       {fund.chartExpanded && <FundChart fundCode={fund.code} fundName={fund.name} />}
+
+      {showAlertSettings && (
+        <AlertSettingsModal
+          fund={fund}
+          onClose={() => setShowAlertSettings(false)}
+          onSave={(code, settings) => {
+            setAlertSettings(settings);
+            if (onToggleAlertSettings) {
+              onToggleAlertSettings(code, settings);
+            }
+          }}
+        />
+      )}
 
       <div className={`collapsible-content ${fund.expanded ? 'expanded' : ''}`}>
         {fund.holdings && fund.holdings.length > 0 ? (

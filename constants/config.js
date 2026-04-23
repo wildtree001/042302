@@ -21,7 +21,10 @@ export const STORAGE_KEYS = {
   THEME: 'theme_mode',
   HOLDINGS_CACHE: 'fund_holdings_cache',
   SORT_PREFERENCE: 'fund_sort_preference',
-  EXPORT_DATA: 'fund_export_data'
+  EXPORT_DATA: 'fund_export_data',
+  ALERT_SETTINGS: 'fund_alert_settings',
+  ALERT_HISTORY: 'fund_alert_history',
+  PERFORMANCE_CACHE: 'fund_performance_cache'
 };
 
 // 数据版本（用于处理本地存储格式变更）

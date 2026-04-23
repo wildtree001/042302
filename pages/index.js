@@ -10,6 +10,7 @@ import { fetchFundRealtime, fetchFundHoldings, fetchBatchStockQuotes } from '../
 import { batchProcess } from '../utils/requestLimiter';
 import { safeSum, safeDivide, safeMultiply } from '../utils/decimalUtils';
 import { API_CONFIG, SORT_OPTIONS, STORAGE_KEYS, UI_CONFIG, DATA_VERSION } from '../constants/config';
+import { getAlertSettings, checkIfAlertedToday, markAlertedToday } from '../components/AlertSettingsModal';
 
 const PerformanceComparisonChart = dynamic(() => import('../components/PerformanceComparisonChart'), {
   ssr: false,
@@ -19,6 +20,11 @@ const PerformanceComparisonChart = dynamic(() => import('../components/Performan
 const SectorDistributionChart = dynamic(() => import('../components/SectorDistributionChart'), {
   ssr: false,
   loading: () => <div className="sector-loading">加载行业分布中...</div>
+});
+
+const PerformanceAnalytics = dynamic(() => import('../components/PerformanceAnalytics'), {
+  ssr: false,
+  loading: () => <div className="analytics-loading">加载收益分析中...</div>
 });
 
 // 初始加载时显示骨架屏数量
@@ -174,8 +180,60 @@ const MoonIcon = () => (
   </svg>
 );
 
+function formatPercent(value) {
+  const num = Number.parseFloat(value);
+  if (!Number.isFinite(num)) return '--';
+  return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
+}
+
+function AlertModal({ alert, onClose }) {
+  if (!alert) return null;
+
+  const isUp = alert.type === 'up';
+  const fund = alert.fund;
+
+  return (
+    <div className="alert-modal-backdrop" role="dialog" aria-modal="true" aria-label="涨跌幅提醒">
+      <div className="alert-modal-card">
+        <div className="alert-modal-header">
+          <div className={`alert-modal-icon ${isUp ? 'up' : 'down'}`}>
+            {isUp ? '📈' : '📉'}
+          </div>
+          <h2 className={`alert-modal-title ${isUp ? 'up' : 'down'}`}>
+            {isUp ? '涨幅提醒' : '跌幅提醒'}
+          </h2>
+        </div>
+
+        <div className="alert-modal-content">
+          <div className="alert-modal-fund-name">{fund.name}</div>
+          <div className="alert-modal-fund-code">({fund.code})</div>
+          
+          <div className="alert-modal-change">
+            <span className="alert-modal-change-label">当前涨跌幅：</span>
+            <span className={`alert-modal-change-value ${isUp ? 'up' : 'down'}`}>
+              {formatPercent(fund.gszzl)}
+            </span>
+          </div>
+
+          <div className="alert-modal-message">
+            {isUp 
+              ? `该基金涨幅已超过您设置的 ${alert.threshold}% 阈值。`
+              : `该基金跌幅已超过您设置的 ${alert.threshold}% 阈值。`}
+          </div>
+        </div>
+
+        <div className="alert-modal-actions">
+          <button type="button" className="button" onClick={onClose}>
+            我知道了
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, warning: showWarning } = useToast();
 
   const [funds, setFfunds] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -186,6 +244,8 @@ export default function Home() {
   const [sortBy, setSortBy] = useState(SORT_OPTIONS.CHANGE_DESC);
   const [favoriteSetup, setFavoriteSetup] = useState(null);
   const [theme, setTheme] = useState('light');
+  const [alertSettings, setAlertSettings] = useState({});
+  const [currentAlert, setCurrentAlert] = useState(null);
 
   const refreshingRef = useRef(false);
   const countdownRef = useRef(refreshInterval); // 使用ref存储倒计时，避免每秒触发重渲染
@@ -357,6 +417,8 @@ export default function Home() {
       setFfunds(enrichedFfunds);
       saveUserData(enrichedFfunds);
       setCountdown(refreshInterval);
+      
+      checkAlerts(enrichedFfunds, alertSettings);
     } catch (err) {
       console.error('刷新数据失败:', err);
       showError('刷新数据失败，请检查网络连接');
@@ -364,7 +426,7 @@ export default function Home() {
       refreshingRef.current = false;
       setLoading(false);
     }
-  }, [funds, refreshInterval, saveUserData, showError]);
+  }, [funds, refreshInterval, saveUserData, showError, checkAlerts, alertSettings]);
 
   useEffect(() => {
     let resolvedTheme = 'light';
@@ -383,10 +445,69 @@ export default function Home() {
     applyTheme(resolvedTheme, false);
   }, [applyTheme]);
 
+  const loadAlertSettings = useCallback(() => {
+    try {
+      const settings = getAlertSettings();
+      setAlertSettings(settings);
+    } catch (err) {
+      console.error('加载提醒设置失败:', err);
+    }
+  }, []);
+
+  const checkAlerts = useCallback((fundsData, settingsMap) => {
+    if (!fundsData || fundsData.length === 0) return;
+
+    fundsData.forEach((fund) => {
+      const settings = settingsMap[fund.code];
+      if (!settings || !settings.enabled) return;
+
+      const changeValue = Number.parseFloat(fund.gszzl);
+      if (!Number.isFinite(changeValue)) return;
+
+      if (settings.notifyOnUp && changeValue > 0) {
+        const threshold = Number.parseFloat(settings.upThreshold) || 5;
+        if (changeValue >= threshold) {
+          if (!checkIfAlertedToday(fund.code, 'up')) {
+            markAlertedToday(fund.code, 'up');
+            setCurrentAlert({
+              type: 'up',
+              fund,
+              threshold
+            });
+            showWarning(`${fund.name} 涨幅已超过 ${threshold}%！`, UI_CONFIG.TOAST_DURATION * 2);
+          }
+        }
+      }
+
+      if (settings.notifyOnDown && changeValue < 0) {
+        const threshold = Number.parseFloat(settings.downThreshold) || 3;
+        if (Math.abs(changeValue) >= threshold) {
+          if (!checkIfAlertedToday(fund.code, 'down')) {
+            markAlertedToday(fund.code, 'down');
+            setCurrentAlert({
+              type: 'down',
+              fund,
+              threshold
+            });
+            showWarning(`${fund.name} 跌幅已超过 ${threshold}%！`, UI_CONFIG.TOAST_DURATION * 2);
+          }
+        }
+      }
+    });
+  }, [showWarning]);
+
+  const handleAlertSettingsChange = useCallback((code, settings) => {
+    setAlertSettings((prev) => ({
+      ...prev,
+      [code]: settings
+    }));
+  }, []);
+
   useEffect(() => {
     loadUserData();
     loadSortPreference();
-  }, [loadUserData, loadSortPreference]);
+    loadAlertSettings();
+  }, [loadUserData, loadSortPreference, loadAlertSettings]);
 
   useEffect(() => {
     if (funds.length === 0) return;
@@ -813,6 +934,8 @@ export default function Home() {
           onSortChange={handleSortChange}
         />
 
+        <PerformanceAnalytics funds={funds} />
+
         {displayFfunds.length === 0 ? (
           <section className="empty-state">
             <h2>列表为空</h2>
@@ -838,6 +961,8 @@ export default function Home() {
                 onExistingProfitChange={handleExistingProfitChange}
                 onSetAmountEdit={handleSetAmountEdit}
                 onSetExistingProfitEdit={handleSetExistingProfitEdit}
+                onToggleAlertSettings={handleAlertSettingsChange}
+                alertSettings={alertSettings}
               />
             ))}
           </section>
@@ -896,6 +1021,11 @@ export default function Home() {
             </section>
           </div>
         )}
+
+        <AlertModal
+          alert={currentAlert}
+          onClose={() => setCurrentAlert(null)}
+        />
       </main>
     </>
   );
