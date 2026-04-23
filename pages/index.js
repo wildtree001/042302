@@ -4,12 +4,14 @@ import dynamic from 'next/dynamic';
 import FundCard from '../components/FundCard';
 import ControlBar from '../components/ControlBar';
 import FundSearch from '../components/FundSearch';
+import PortfolioHealthReport from '../components/PortfolioHealthReport';
 import { useToast } from '../components/Toast';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { fetchFundRealtime, fetchFundHoldings, fetchBatchStockQuotes } from '../services/fundService';
 import { batchProcess } from '../utils/requestLimiter';
 import { safeSum, safeDivide, safeMultiply } from '../utils/decimalUtils';
 import { API_CONFIG, SORT_OPTIONS, STORAGE_KEYS, UI_CONFIG, DATA_VERSION } from '../constants/config';
+import { diagnosePortfolio, SEVERITY_LEVELS } from '../utils/portfolioDiagnostics';
 
 const PerformanceComparisonChart = dynamic(() => import('../components/PerformanceComparisonChart'), {
   ssr: false,
@@ -186,6 +188,8 @@ export default function Home() {
   const [sortBy, setSortBy] = useState(SORT_OPTIONS.CHANGE_DESC);
   const [favoriteSetup, setFavoriteSetup] = useState(null);
   const [theme, setTheme] = useState('light');
+  const [showHealthReport, setShowHealthReport] = useState(false);
+  const [portfolioDiagnosis, setPortfolioDiagnosis] = useState(null);
 
   const refreshingRef = useRef(false);
   const countdownRef = useRef(refreshInterval); // 使用ref存储倒计时，避免每秒触发重渲染
@@ -278,6 +282,32 @@ export default function Home() {
       console.error('加载排序偏好失败:', err);
     }
   }, []);
+
+  const handleDiagnosePortfolio = useCallback(() => {
+    const diagnosis = diagnosePortfolio(funds);
+    setPortfolioDiagnosis(diagnosis);
+    setShowHealthReport(true);
+
+    if (!diagnosis.hasData) {
+      showError('请添加至少一只自选基金并设置持仓金额后进行健康度诊断');
+    }
+  }, [funds, showError]);
+
+  const handleCloseHealthReport = useCallback(() => {
+    setShowHealthReport(false);
+  }, []);
+
+  const hasTrackedFunds = useMemo(() => {
+    return funds.some((fund) => {
+      const amount = Number.parseFloat(fund.amount);
+      return fund.isFavorite && Number.isFinite(amount) && amount > 0;
+    });
+  }, [funds]);
+
+  const warningCount = useMemo(() => {
+    if (!portfolioDiagnosis?.allWarnings) return 0;
+    return portfolioDiagnosis.allWarnings.length;
+  }, [portfolioDiagnosis]);
 
   const refreshAllData = useCallback(async () => {
     if (refreshingRef.current || funds.length === 0) {
@@ -790,6 +820,19 @@ export default function Home() {
                   <span className="metric-label">自选数量</span>
                   <span className="metric-value">{summary.favoriteFfunds}</span>
                 </div>
+                <button
+                  type="button"
+                  className="health-diagnose-btn"
+                  onClick={handleDiagnosePortfolio}
+                  disabled={!hasTrackedFunds}
+                  title={!hasTrackedFunds ? '请添加自选基金并设置持仓金额后进行诊断' : '进行投资组合健康度诊断'}
+                >
+                  <span className="health-diagnose-btn-icon">📊</span>
+                  <span>健康诊断</span>
+                  {warningCount > 0 && (
+                    <span className="health-diagnose-btn-badge">{warningCount}</span>
+                  )}
+                </button>
               </div>
               <FundSearch onSelect={handleAddFund} />
             </div>
@@ -894,6 +937,23 @@ export default function Home() {
                 </div>
               </form>
             </section>
+          </div>
+        )}
+
+        {showHealthReport && portfolioDiagnosis && (
+          <div
+            className="health-report-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="投资组合健康度诊断报告"
+            onClick={handleCloseHealthReport}
+          >
+            <div onClick={(event) => event.stopPropagation()}>
+              <PortfolioHealthReport
+                diagnosis={portfolioDiagnosis}
+                onClose={handleCloseHealthReport}
+              />
+            </div>
           </div>
         )}
       </main>

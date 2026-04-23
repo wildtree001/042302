@@ -2,6 +2,7 @@ import '../styles/globals.css';
 import '../styles/toast.css';
 import '../styles/error-boundary.css';
 import '../styles/sector-chart.css';
+import '../styles/portfolio-health.css';
 import { ToastProvider } from '../components/Toast';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useEffect } from 'react';
