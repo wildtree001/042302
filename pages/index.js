@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import FundCard from '../components/FundCard';
 import ControlBar from '../components/ControlBar';
@@ -171,6 +172,14 @@ const SunIcon = () => (
 const MoonIcon = () => (
   <svg className="icon-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+);
+
+const ChartIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="20" x2="18" y2="10" />
+    <line x1="12" y1="20" x2="12" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="14" />
   </svg>
 );
 
@@ -790,6 +799,10 @@ export default function Home() {
                   <span className="metric-label">自选数量</span>
                   <span className="metric-value">{summary.favoriteFfunds}</span>
                 </div>
+                <Link href="/analytics" className="button analytics-nav-button">
+                  <ChartIcon />
+                  <span>收益统计</span>
+                </Link>
               </div>
               <FundSearch onSelect={handleAddFund} />
             </div>
