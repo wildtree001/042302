@@ -1,4 +1,4 @@
-import { resolveFundSectorTag } from './fundLabels';
+import { resolveFundSectorTag, HOLDINGS_SECTOR_MAP } from './fundLabels';
 import { safeSum, safeDivide, safeMultiply } from './decimalUtils';
 
 const SEVERITY_LEVELS = {
