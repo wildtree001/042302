@@ -389,17 +389,24 @@ function ReturnAnalyticsChart({
 
   useEffect(() => {
     if (onExportRef && containerRef.current) {
+      const periodLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label || period;
+      const aggregationLabel = AGGREGATION_OPTIONS.find((a) => a.value === aggregation)?.label || aggregation;
+      const chartTypeLabel = CHART_TYPE_OPTIONS.find((c) => c.value === chartType)?.label || chartType;
+      
       onExportRef.current = {
         chartContainer: containerRef.current,
         chartData: {
-          period,
-          aggregation,
+          period: periodLabel,
+          periodValue: period,
+          aggregation: aggregationLabel,
+          aggregationValue: aggregation,
           benchmark: selectedBenchmarkLabel,
-          chartType
-        }
+          chartType: chartTypeLabel
+        },
+        summary: summary
       };
     }
-  }, [onExportRef, period, aggregation, selectedBenchmarkLabel, chartType]);
+  }, [onExportRef, period, aggregation, selectedBenchmarkLabel, chartType, summary]);
 
   useEffect(() => {
     let canceled = false;

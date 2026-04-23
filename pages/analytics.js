@@ -3,7 +3,7 @@ import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useToast } from '../components/Toast';
-import { exportChartAsImage, exportChartAsPdf, captureElement, triggerPrint } from '../utils/exportUtils';
+import { exportAnalyticsReport, triggerPrint } from '../utils/exportUtils';
 import { STORAGE_KEYS, UI_CONFIG, DATA_VERSION } from '../constants/config';
 
 const ReturnAnalyticsChart = dynamic(() => import('../components/ReturnAnalyticsChart'), {
@@ -138,7 +138,7 @@ export default function Analytics() {
     applyTheme(theme === 'dark' ? 'light' : 'dark');
   }, [applyTheme, theme]);
 
-  const handleExportImage = async (format = 'png') => {
+  const handleExportReport = async () => {
     if (!exportRef.current?.chartContainer) {
       showError('图表尚未加载完成');
       return;
@@ -147,45 +147,21 @@ export default function Analytics() {
     setExporting(true);
     try {
       const chartData = exportRef.current.chartData || {};
-      const filename = `收益分析_${new Date().toISOString().slice(0, 10)}`;
+      const summary = exportRef.current.summary;
+      const subtitle = `${chartData.period || ''} | ${chartData.aggregation || ''} | 基准: ${chartData.benchmark || '--'}`;
       
-      await exportChartAsImage(exportRef.current.chartContainer, {
-        filename,
-        format,
-        quality: 0.95
+      await exportAnalyticsReport(exportRef.current.chartContainer, {
+        filename: '收益分析报告',
+        title: '历史收益统计分析',
+        subtitle,
+        summary,
+        chartData
       });
       
-      success(`已导出为 ${format.toUpperCase()} 图片`);
-    } catch (err) {
-      console.error('导出图片失败:', err);
-      showError('导出图片失败，请稍后重试');
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleExportPdf = async () => {
-    if (!exportRef.current?.chartContainer) {
-      showError('图表尚未加载完成');
-      return;
-    }
-
-    setExporting(true);
-    try {
-      const chartData = exportRef.current.chartData || {};
-      const filename = `收益分析报告_${new Date().toISOString().slice(0, 10)}`;
-      const subtitle = `${chartData.period || ''} ${chartData.aggregation || ''} 与${chartData.benchmark || '基准'}对比`;
-      
-      await exportChartAsPdf(exportRef.current.chartContainer, {
-        filename,
-        title: '历史收益统计分析报告',
-        subtitle
-      });
-      
-      success('已导出为报告图片（可直接打印）');
+      success('报告已导出为PNG图片');
     } catch (err) {
       console.error('导出报告失败:', err);
-      showError('导出报告失败，请稍后重试');
+      showError('导出失败，请稍后重试');
     } finally {
       setExporting(false);
     }
@@ -241,29 +217,11 @@ export default function Analytics() {
               <button
                 type="button"
                 className="button button-secondary export-button"
-                onClick={() => handleExportImage('png')}
+                onClick={handleExportReport}
                 disabled={exporting}
               >
                 <DownloadIcon />
                 <span>导出PNG</span>
-              </button>
-              <button
-                type="button"
-                className="button button-secondary export-button"
-                onClick={() => handleExportImage('jpeg')}
-                disabled={exporting}
-              >
-                <DownloadIcon />
-                <span>导出JPG</span>
-              </button>
-              <button
-                type="button"
-                className="button button-secondary export-button"
-                onClick={handleExportPdf}
-                disabled={exporting}
-              >
-                <DownloadIcon />
-                <span>导出报告</span>
               </button>
               <button
                 type="button"
@@ -322,7 +280,7 @@ export default function Analytics() {
                 <strong>显示选项：</strong>可切换是否显示基准指数和超额收益曲线
               </li>
               <li>
-                <strong>导出功能：</strong>支持导出为PNG/JPG图片，或使用打印功能生成PDF报告
+                <strong>导出功能：</strong>支持导出完整报告为PNG图片，或使用打印功能生成PDF
               </li>
             </ul>
           </div>
