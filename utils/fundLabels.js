@@ -258,3 +258,6 @@ export const getFundLabel = (fund) => {
 
 // 保留原有的 resolveFundSectorTag 作为别名，向后兼容
 export const resolveFundSectorTag = getFundLabel;
+
+// 导出重仓股行业映射表，供其他模块使用
+export { HOLDINGS_SECTOR_MAP };
