@@ -580,7 +580,7 @@ const analyzeRiskExposure = (funds) => {
       totalAssets,
       highVolatilityCount: highVolCount,
       lowVolatilityCount: lowVolCount,
-      highVolatilityRatio
+      highVolatilityRatio: highVolRatio
     }
   };
 };
